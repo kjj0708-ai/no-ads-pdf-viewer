@@ -1295,21 +1295,10 @@
 
   async function rerenderAll(scrollTop = null, scrollLeft = null) {
     renderedPages.clear();
+    canvasCont.innerHTML = '';
+    for (let i = 1; i <= totalPages; i++) canvasCont.appendChild(makePlaceholder(i));
 
-    // innerHTML 전체 초기화 대신 각 wrapper를 제자리에서 업데이트
-    // → DOM 구조 유지로 scroll 위치 튐 방지
-    for (let i = 1; i <= totalPages; i++) {
-      const wrapper = $(`pw-${i}`);
-      if (!wrapper) continue;
-      const oldCanvas = wrapper.querySelector('canvas');
-      if (oldCanvas) oldCanvas.remove();
-      if (pageDimensions[i]) {
-        wrapper.style.width  = Math.round(pageDimensions[i].width  * scale) + 'px';
-        wrapper.style.height = Math.round(pageDimensions[i].height * scale) + 'px';
-      }
-    }
-
-    // 레이아웃 강제 반영 후 scroll 설정
+    // 플레이스홀더 높이가 반영되도록 layout 강제 후 scroll 설정
     void viewerWrap.offsetHeight;
     if (scrollTop !== null) {
       viewerWrap.scrollTop  = Math.max(0, scrollTop);
