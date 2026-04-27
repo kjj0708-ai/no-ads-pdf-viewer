@@ -1272,9 +1272,16 @@
   function changeZoom(newScale) {
     newScale = Math.max(getZoomMin(), Math.min(getZoomMax(), newScale));
     if (Math.abs(newScale - scale) < 0.0001) return;
+    const r = newScale / scale;
+    // 뷰포트 중심을 기준으로 zoom → 중심점이 유지되도록 scrollTop 보정
+    const centerY = viewerWrap.scrollTop + viewerWrap.clientHeight / 2;
+    const centerX = viewerWrap.scrollLeft + viewerWrap.clientWidth / 2;
     scale = newScale;
     updateZoomLabel();
-    rerenderAll();
+    rerenderAll(
+      centerY * r - viewerWrap.clientHeight / 2,
+      centerX * r - viewerWrap.clientWidth / 2
+    );
   }
 
   function updateZoomLabel() {
@@ -1286,14 +1293,21 @@
   $('zoom-fit').addEventListener('click', () => changeZoom(baseScale));
   zoomLabel.addEventListener('click',     () => changeZoom(baseScale));
 
-  async function rerenderAll() {
+  async function rerenderAll(scrollTop = null, scrollLeft = null) {
     renderedPages.clear();
     canvasCont.innerHTML = '';
     for (let i = 1; i <= totalPages; i++) canvasCont.appendChild(makePlaceholder(i));
 
-    // 플레이스홀더에 정확한 높이가 지정돼 있으므로 scrollTop으로 바로 위치 잡기
-    const pageEl = $(`pw-${currentPage}`);
-    if (pageEl) viewerWrap.scrollTop = pageEl.offsetTop;
+    // 플레이스홀더가 정확한 높이를 가지므로 scrollTop 바로 적용
+    if (scrollTop !== null) {
+      viewerWrap.scrollTop = Math.max(0, scrollTop);
+    } else {
+      const pageEl = $(`pw-${currentPage}`);
+      if (pageEl) viewerWrap.scrollTop = pageEl.offsetTop;
+    }
+    if (scrollLeft !== null) {
+      viewerWrap.scrollLeft = Math.max(0, scrollLeft);
+    }
 
     const nearby = [currentPage-1, currentPage, currentPage+1].filter(p => p >= 1 && p <= totalPages);
     await renderPages(nearby);
@@ -1321,16 +1335,24 @@
   });
 
   // ── 핀치 줌 (모바일) ──
-  // 핀치 중: CSS transform으로 실시간 시각 반응
-  // 핀치 끝: 새 scale로 실제 렌더링
-  let lastDist = 0, pinchStart = 1, pinching = false, pinchScrollTop = 0;
+  let lastDist = 0, pinchStart = 1, pinching = false;
+  let pinchContentX = 0, pinchContentY = 0; // 핀치 중심점의 콘텐츠 좌표
+  let pinchViewportX = 0, pinchViewportY = 0; // 핀치 중심점의 뷰포트 좌표
 
   viewerWrap.addEventListener('touchstart', e => {
     if (e.touches.length === 2) {
       pinching = true;
       lastDist = dist(e.touches);
       pinchStart = scale;
-      pinchScrollTop = viewerWrap.scrollTop; // 핀치 시작 시 스크롤 위치 저장
+      const wrRect = viewerWrap.getBoundingClientRect();
+      const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      // 뷰포트 기준 핀치 위치
+      pinchViewportX = cx - wrRect.left;
+      pinchViewportY = cy - wrRect.top;
+      // 콘텐츠 기준 핀치 위치 (스크롤 포함)
+      pinchContentX = viewerWrap.scrollLeft + pinchViewportX;
+      pinchContentY = viewerWrap.scrollTop  + pinchViewportY;
       canvasCont.style.willChange = 'transform';
     }
   }, { passive: true });
@@ -1340,38 +1362,31 @@
     const newScale = Math.max(getZoomMin(), Math.min(getZoomMax(), pinchStart * (dist(e.touches) / lastDist)));
     scale = newScale;
     updateZoomLabel();
-
-    // 렌더링 없이 CSS transform으로 즉각적인 시각 피드백
+    // CSS transform으로 즉각적인 시각 피드백 — origin은 핀치 중심(뷰포트 기준)
     const visualRatio = newScale / pinchStart;
+    const rect = canvasCont.getBoundingClientRect();
     const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
     const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-    const rect = canvasCont.getBoundingClientRect();
-    const ox = cx - rect.left;
-    const oy = cy - rect.top + viewerWrap.scrollTop;
-    canvasCont.style.transformOrigin = `${ox}px ${oy}px`;
+    canvasCont.style.transformOrigin = `${cx - rect.left}px ${cy - rect.top}px`;
     canvasCont.style.transform = `scale(${visualRatio})`;
   }, { passive: true });
 
-  viewerWrap.addEventListener('touchend', e => {
+  function endPinch() {
     if (!pinching) return;
-    if (e.touches.length >= 2) return; // 손가락 하나씩 뗄 때 중복 방지
     pinching = false;
     canvasCont.style.transform = '';
     canvasCont.style.transformOrigin = '';
     canvasCont.style.willChange = '';
-    // 핀치 시작 위치 기준으로 새 scale에 맞게 스크롤 위치 보정
-    viewerWrap.scrollTop = pinchScrollTop * (scale / pinchStart);
-    rerenderAll();
-  }, { passive: true });
+    // 핀치 중심점이 뷰포트에서 같은 위치에 유지되도록 scrollTop/Left 계산
+    const r = scale / pinchStart;
+    rerenderAll(
+      pinchContentY * r - pinchViewportY,
+      pinchContentX * r - pinchViewportX
+    );
+  }
 
-  viewerWrap.addEventListener('touchcancel', () => {
-    if (!pinching) return;
-    pinching = false;
-    canvasCont.style.transform = '';
-    canvasCont.style.transformOrigin = '';
-    canvasCont.style.willChange = '';
-    rerenderAll();
-  }, { passive: true });
+  viewerWrap.addEventListener('touchend',    e => { if (e.touches.length < 2) endPinch(); }, { passive: true });
+  viewerWrap.addEventListener('touchcancel', ()  => endPinch(), { passive: true });
 
   function dist(t) {
     return Math.sqrt((t[0].clientX - t[1].clientX) ** 2 + (t[0].clientY - t[1].clientY) ** 2);
