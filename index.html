@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>광고 없는 PDF 뷰어 | 초실행관</title>
+<meta name="description" content="광고 없이, 기능에만 집중한 무료 PDF 뷰어. 광고 없이 PDF를 보고, 원하는 페이지를 이미지로 저장하세요.">
+<meta property="og:title" content="광고 없는 PDF 뷰어">
+<meta property="og:description" content="광고 때문에 짜증나셨죠? 이제 끝입니다. 완전 무료, 광고 제로.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://pdf.choshg.com">
+<meta property="og:image" content="https://pdf.choshg.com/logo.png">
+<link rel="apple-touch-icon" href="./logo.png">
+<meta name="theme-color" content="#0f0f13">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --gold: #c8960c;
+  --gold-light: #f5d36e;
+  --gold-bright: #ffe580;
+  --bg: #0f0f13;
+  --bg2: #16161d;
+  --bg3: #1e1e28;
+  --border: #2a2a38;
+  --text: #e8e8f0;
+  --text-dim: #8888a0;
+  --accent: #6c8fff;
+  --accent2: #a78bfa;
+  --red: #ff4d4d;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'Noto Sans KR', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+/* ── 공통 ── */
+.container {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+.section { padding: 80px 0; }
+.section-title {
+  font-size: clamp(22px, 5vw, 30px);
+  font-weight: 900;
+  margin-bottom: 12px;
+  line-height: 1.3;
+}
+.section-sub {
+  font-size: 15px;
+  color: var(--text-dim);
+  margin-bottom: 40px;
+}
+
+/* ── 히어로 ── */
+#hero {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 60px 20px;
+  background: radial-gradient(ellipse 80% 60% at 50% 30%, rgba(108,143,255,0.12) 0%, transparent 70%),
+              radial-gradient(ellipse 50% 40% at 80% 70%, rgba(167,139,250,0.08) 0%, transparent 60%),
+              var(--bg);
+  position: relative;
+  overflow: hidden;
+}
+
+#hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='1' cy='1' r='0.8' fill='rgba(255,255,255,0.04)'/%3E%3C/svg%3E");
+  pointer-events: none;
+}
+
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(108,143,255,0.12);
+  border: 1px solid rgba(108,143,255,0.3);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: 100px;
+  margin-bottom: 28px;
+  letter-spacing: 0.02em;
+}
+
+.hero-title {
+  font-size: clamp(32px, 8vw, 56px);
+  font-weight: 900;
+  line-height: 1.15;
+  margin-bottom: 20px;
+  letter-spacing: -0.02em;
+}
+
+.hero-title .highlight {
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero-title .no-ads {
+  background: linear-gradient(135deg, #ff6b6b, #ff4d4d);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-decoration: line-through;
+  text-decoration-color: #ff4d4d;
+  opacity: 0.7;
+  font-size: 0.7em;
+  display: block;
+}
+
+.hero-desc {
+  font-size: clamp(15px, 3vw, 18px);
+  color: var(--text-dim);
+  margin-bottom: 36px;
+  max-width: 480px;
+}
+
+.cta-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: white;
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 700;
+  padding: 16px 36px;
+  border-radius: 16px;
+  text-decoration: none;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 6px 32px rgba(108,143,255,0.35);
+  transition: transform 0.15s, box-shadow 0.15s;
+  letter-spacing: -0.01em;
+}
+.cta-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 40px rgba(108,143,255,0.45); }
+.cta-btn:active { transform: scale(0.98); }
+.cta-btn svg { width: 20px; height: 20px; }
+
+.hero-note {
+  margin-top: 16px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.scroll-hint {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-dim);
+  font-size: 11px;
+  animation: bounce 2s infinite;
+}
+.scroll-hint svg { width: 18px; height: 18px; }
+@keyframes bounce { 0%,100%{transform:translateX(-50%) translateY(0)} 50%{transform:translateX(-50%) translateY(6px)} }
+
+/* ── 광고 고통 섹션 ── */
+#pain {
+  background: var(--bg2);
+  padding: 80px 0;
+}
+
+.pain-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pain-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  background: rgba(255,77,77,0.06);
+  border: 1px solid rgba(255,77,77,0.15);
+  border-radius: 14px;
+  padding: 18px 20px;
+}
+
+.pain-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+  line-height: 1;
+  margin-top: 2px;
+}
+
+.pain-item strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.pain-item p { font-size: 13px; color: var(--text-dim); }
+
+/* ── 솔루션 ── */
+#solution {
+  padding: 80px 0;
+  text-align: center;
+  background: radial-gradient(ellipse 60% 40% at 50% 50%, rgba(108,143,255,0.08) 0%, transparent 70%), var(--bg);
+}
+
+.solution-box {
+  background: linear-gradient(135deg, rgba(108,143,255,0.08), rgba(167,139,250,0.08));
+  border: 1px solid rgba(108,143,255,0.2);
+  border-radius: 24px;
+  padding: 40px 28px;
+  margin-top: 32px;
+}
+
+.solution-number {
+  font-size: 60px;
+  font-weight: 900;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
+.solution-box p {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+.solution-box span { font-size: 14px; color: var(--text-dim); }
+
+/* ── 기능 섹션 ── */
+#features {
+  background: var(--bg2);
+  padding: 80px 0;
+}
+
+.feature-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.feature-card {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 24px;
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+  transition: border-color 0.2s, transform 0.2s;
+}
+.feature-card:hover { border-color: rgba(108,143,255,0.4); transform: translateX(4px); }
+
+.feature-icon-wrap {
+  width: 52px; height: 52px;
+  border-radius: 14px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  font-size: 26px;
+}
+.feature-icon-wrap.blue  { background: rgba(108,143,255,0.15); }
+.feature-icon-wrap.purple { background: rgba(167,139,250,0.15); }
+.feature-icon-wrap.green  { background: rgba(52,211,153,0.15); }
+.feature-icon-wrap.orange { background: rgba(251,146,60,0.15); }
+.feature-icon-wrap.teal   { background: rgba(45,212,191,0.15); }
+
+.feature-body h3 {
+  font-size: 17px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.feature-body .feature-badge {
+  display: inline-block;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+  margin-bottom: 6px;
+  letter-spacing: 0.03em;
+}
+.feature-body p { font-size: 14px; color: var(--text-dim); line-height: 1.6; }
+
+/* ── 이미지 저장 강조 섹션 ── */
+#image-save {
+  padding: 80px 0;
+  background: var(--bg);
+}
+
+.img-save-demo {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 28px 24px;
+  margin-top: 32px;
+}
+
+.demo-step {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+.demo-step:last-child { border-bottom: none; }
+
+.step-num {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: white;
+  font-size: 14px;
+  font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+
+.step-text strong { font-size: 15px; font-weight: 700; display: block; margin-bottom: 2px; }
+.step-text span { font-size: 13px; color: var(--text-dim); }
+
+/* ── CTA 섹션 ── */
+#cta {
+  padding: 80px 0;
+  background: var(--bg2);
+  text-align: center;
+}
+
+.cta-box {
+  background: linear-gradient(135deg, rgba(108,143,255,0.1), rgba(167,139,250,0.1));
+  border: 1px solid rgba(108,143,255,0.2);
+  border-radius: 24px;
+  padding: 48px 28px;
+}
+
+.cta-box .section-title { margin-bottom: 8px; }
+.cta-box .cta-desc { font-size: 16px; color: var(--text-dim); margin-bottom: 28px; }
+
+.cta-features {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 24px;
+}
+.cta-feature-tag {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  padding: 5px 14px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+/* ── 초실행관 푸터 ── */
+#founder {
+  padding: 80px 0 60px;
+  background: var(--bg);
+  text-align: center;
+}
+
+/* 로고 다이아몬드 SVG 래퍼 */
+.logo-wrap {
+  width: 160px;
+  height: 160px;
+  margin: 0 auto 28px;
+  filter: drop-shadow(0 8px 32px rgba(200,150,12,0.4));
+}
+.logo-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.founder-name {
+  font-size: 22px;
+  font-weight: 900;
+  background: linear-gradient(135deg, var(--gold-light), var(--gold), var(--gold-light));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 16px;
+}
+
+.slogan {
+  font-size: clamp(26px, 6vw, 38px);
+  font-weight: 900;
+  color: var(--text);
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  margin-bottom: 12px;
+}
+.slogan .accent-word {
+  background: linear-gradient(135deg, var(--gold-light), var(--gold-bright));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.slogan-sub {
+  font-size: 14px;
+  color: var(--text-dim);
+  margin-bottom: 32px;
+}
+
+.divider {
+  width: 48px;
+  height: 2px;
+  background: linear-gradient(90deg, var(--gold), var(--gold-light));
+  border-radius: 1px;
+  margin: 0 auto 20px;
+}
+
+.copyright {
+  font-size: 12px;
+  color: var(--text-dim);
+  opacity: 0.5;
+}
+
+/* 네비 바 */
+#nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  background: rgba(15,15,19,0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  padding: 0 20px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.nav-brand {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.nav-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: white;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 7px 16px;
+  border-radius: 10px;
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+.nav-cta:hover { opacity: 0.85; }
+
+/* 첫 섹션 패딩 (nav 높이) */
+#hero { padding-top: 100px; }
+
+/* 반응형 */
+@media (min-width: 600px) {
+  .pain-grid { display: grid; grid-template-columns: 1fr 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- 내비 -->
+<nav id="nav">
+  <div class="nav-brand">📄 광고 없는 PDF 뷰어</div>
+  <a href="./app.html" class="nav-cta">
+    지금 사용하기
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px">
+      <polyline points="9 18 15 12 9 6"/>
+    </svg>
+  </a>
+</nav>
+
+<!-- ① 히어로 -->
+<section id="hero">
+  <img src="./logo.png" alt="광고 없는 PDF 뷰어 로고" style="width:120px;height:120px;object-fit:contain;margin-bottom:20px;filter:drop-shadow(0 4px 24px rgba(108,143,255,0.35));border-radius:24px;">
+
+  <div class="hero-badge">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px">
+      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+    완전 무료 · 광고 제로 · 설치 불필요
+  </div>
+
+  <h1 class="hero-title">
+    <span class="no-ads">광고? 더 이상 없어요.</span>
+    광고 없는<br>
+    <span class="highlight">PDF 뷰어</span>
+  </h1>
+
+  <p class="hero-desc">
+    PDF 보려고 켰더니 광고가 먼저?<br>
+    이제 그런 앱은 지워도 됩니다.
+  </p>
+
+  <a href="./app.html" class="cta-btn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+    </svg>
+    지금 바로 사용하기
+  </a>
+
+  <p class="hero-note">설치 없이 브라우저에서 바로 사용 · 앱 설치도 가능</p>
+
+  <div class="scroll-hint">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="6 9 12 15 18 9"/>
+    </svg>
+    자세히 보기
+  </div>
+</section>
+
+<!-- ② 광고의 고통 -->
+<section id="pain">
+  <div class="container">
+    <div class="section-title">이런 경험, 있지 않으셨나요?</div>
+    <p class="section-sub">PDF 하나 보려다 하루가 다 가는 느낌</p>
+
+    <div class="pain-grid">
+      <div class="pain-item">
+        <div class="pain-icon">😤</div>
+        <div>
+          <strong>전면 광고가 먼저</strong>
+          <p>앱을 켰더니 광고가 화면 전체를 가려요. X 버튼을 찾는 것도 일.</p>
+        </div>
+      </div>
+      <div class="pain-item">
+        <div class="pain-icon">⏳</div>
+        <div>
+          <strong>5초 강제 대기</strong>
+          <p>닫기 버튼이 5초 후에 생겨요. 분명히 급한데.</p>
+        </div>
+      </div>
+      <div class="pain-item">
+        <div class="pain-icon">🔊</div>
+        <div>
+          <strong>갑자기 소리 나는 광고</strong>
+          <p>조용한 곳에서 갑자기 광고 영상이 재생돼요.</p>
+        </div>
+      </div>
+      <div class="pain-item">
+        <div class="pain-icon">💸</div>
+        <div>
+          <strong>광고 없애려면 유료</strong>
+          <p>광고를 제거하려면 월 구독료를 내야 한대요.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ③ 솔루션 -->
+<section id="solution">
+  <div class="container" style="text-align:center">
+    <div class="section-title">그래서 만들었습니다</div>
+    <p class="section-sub">
+      딱 하나만 약속합니다.<br>
+      <strong style="color:var(--text)">광고 없이, PDF만 봅니다.</strong>
+    </p>
+
+    <div class="solution-box">
+      <div class="solution-number">0</div>
+      <p>광고 개수</p>
+      <span>지금도, 앞으로도, 영원히 0개</span>
+    </div>
+  </div>
+</section>
+
+<!-- ④ 주요 기능 -->
+<section id="features">
+  <div class="container">
+    <div class="section-title">뷰어에만 집중했습니다</div>
+    <p class="section-sub">광고 없애고, 필요한 기능만 담았어요</p>
+
+    <div class="feature-list">
+      <div class="feature-card">
+        <div class="feature-icon-wrap blue">📄</div>
+        <div class="feature-body">
+          <h3>빠른 PDF 열기</h3>
+          <p>파일 선택, 드래그 앤 드롭 모두 지원. 클릭 한 번에 바로 열립니다. 서버에 업로드하지 않아 개인정보도 안전해요.</p>
+        </div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon-wrap purple">🔍</div>
+        <div class="feature-body">
+          <h3>자유로운 확대 · 축소</h3>
+          <p>버튼 클릭, 핀치 줌, 키보드 단축키로 자유롭게 확대·축소. 화면 맞춤 버튼 한 번이면 전체 페이지가 한눈에 들어와요.</p>
+        </div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon-wrap orange">🖼️</div>
+        <div class="feature-body">
+          <span class="feature-badge">핵심 기능</span>
+          <h3>원하는 페이지만 이미지로 저장</h3>
+          <p>필요한 페이지만 PNG로 저장하거나, 전체 페이지를 ZIP으로 한 번에 저장. 강의 자료, 계약서 특정 페이지 캡처할 때 딱이에요.</p>
+        </div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon-wrap teal">⛶</div>
+        <div class="feature-body">
+          <h3>전체화면 보기</h3>
+          <p>F 키 하나로 전체화면 전환. 발표용, 집중 독서용으로 사용하세요. 재클릭하면 원래대로 돌아옵니다.</p>
+        </div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon-wrap green">📱</div>
+        <div class="feature-body">
+          <h3>앱처럼 설치 가능 (PWA)</h3>
+          <p>Android, iOS, PC 모두 홈 화면에 추가하면 앱처럼 사용 가능. 앱스토어 없이 설치, 업데이트도 자동이에요.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ⑤ 이미지 저장 기능 강조 -->
+<section id="image-save">
+  <div class="container">
+    <div class="section-title">
+      원하는 페이지만<br>이미지로 저장하는 법
+    </div>
+    <p class="section-sub">딱 세 단계면 끝납니다</p>
+
+    <div class="img-save-demo">
+      <div class="demo-step">
+        <div class="step-num">1</div>
+        <div class="step-text">
+          <strong>PDF 파일 열기</strong>
+          <span>파일 선택 또는 드래그 앤 드롭</span>
+        </div>
+      </div>
+      <div class="demo-step">
+        <div class="step-num">2</div>
+        <div class="step-text">
+          <strong>🖼️ 이미지 버튼 클릭</strong>
+          <span>상단 바의 이미지 아이콘을 누르세요</span>
+        </div>
+      </div>
+      <div class="demo-step">
+        <div class="step-num">3</div>
+        <div class="step-text">
+          <strong>저장 방식 선택</strong>
+          <span>현재 페이지 PNG 저장 · 전체 페이지 ZIP 저장</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ⑥ CTA -->
+<section id="cta">
+  <div class="container">
+    <div class="cta-box">
+      <div class="section-title">광고 없이, 지금 바로 시작하세요</div>
+      <p class="cta-desc">회원가입 없음 · 앱 설치 없음 · 광고 없음</p>
+      <a href="./app.html" class="cta-btn" style="font-size:16px; padding:15px 40px;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+        </svg>
+        무료로 PDF 열기
+      </a>
+      <div class="cta-features">
+        <span class="cta-feature-tag">✅ 광고 없음</span>
+        <span class="cta-feature-tag">✅ 완전 무료</span>
+        <span class="cta-feature-tag">✅ 개인정보 보호</span>
+        <span class="cta-feature-tag">✅ 설치 선택 사항</span>
+        <span class="cta-feature-tag">✅ PC · 모바일 모두</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ⑦ 초실행관 푸터 -->
+<section id="founder">
+  <div class="container">
+    <!-- 초실행관 로고 -->
+    <div class="logo-wrap">
+      <img src="./cshg.png" alt="초실행관 로고">
+    </div>
+
+    <div class="founder-name">초실행관</div>
+
+    <div class="divider"></div>
+
+    <div class="slogan">
+      <span class="accent-word">실행</span>이 답이다
+    </div>
+    <p class="slogan-sub">생각만 하지 말고, 일단 실행하세요</p>
+
+    <a href="./app.html" class="cta-btn" style="margin: 0 auto; display:inline-flex;">
+      지금 바로 실행하기 →
+    </a>
+
+    <div class="divider" style="margin-top:40px;"></div>
+    <p class="copyright">© 2026 초실행관 · <a href="https://www.youtube.com/@초실행관" target="_blank" rel="noopener" style="color:var(--text-dim);text-decoration:none;">유튜브 채널 바로가기</a></p>
+  </div>
+</section>
+
+</body>
+</html>

@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx netlify-cli *)",
+      "Bash(dir \"C:\\\\Users\\\\김종진\\\\Desktop\\\\vibecoding\\\\pdf-viewer-pwa\")",
+      "Bash(gh --version)",
+      "Bash(gh auth *)"
+    ]
+  }
+}

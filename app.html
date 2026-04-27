@@ -1,0 +1,1535 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="광고없는PDF뷰어">
+<meta name="theme-color" content="#1a1a1f">
+<link rel="manifest" href="./manifest.json">
+<title>광고 없는 PDF 뷰어</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
+
+  :root {
+    --bg: #1a1a1f;
+    --surface: #25252d;
+    --surface2: #2e2e38;
+    --border: #3a3a48;
+    --accent: #6c8fff;
+    --accent2: #a78bfa;
+    --text: #e8e8f0;
+    --text-dim: #8888a0;
+    --bar-h: 52px;
+    --bottom-h: 48px;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bot: env(safe-area-inset-bottom, 0px);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    font-family: 'Noto Sans KR', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    user-select: none;
+    padding-top: var(--safe-top);
+    padding-bottom: var(--safe-bot);
+  }
+
+  /* ── 상단 바 ── */
+  #topbar {
+    height: var(--bar-h);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    gap: 4px;
+    flex-shrink: 0;
+    z-index: 10;
+  }
+
+  #file-title {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+    padding: 0 4px;
+  }
+
+  .icon-btn {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    flex-shrink: 0;
+  }
+  .icon-btn:hover, .icon-btn:active { background: var(--border); color: var(--text); }
+  .icon-btn svg { width: 18px; height: 18px; }
+
+  /* ── 줌 컨트롤 그룹 (상단 바 내) ── */
+  #zoom-controls {
+    display: flex;
+    align-items: center;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  #zoom-controls.hidden { display: none; }
+
+  .z-btn {
+    width: 30px; height: 30px;
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 17px; font-weight: 700;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s, color 0.15s;
+    flex-shrink: 0;
+    line-height: 1;
+  }
+  .z-btn:hover, .z-btn:active { background: var(--border); color: var(--text); }
+  .z-btn svg { width: 13px; height: 13px; }
+
+  #zoom-label {
+    min-width: 44px;
+    font-size: 11px; font-weight: 700;
+    color: var(--accent);
+    text-align: center;
+    padding: 0 3px;
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    line-height: 30px;
+    cursor: pointer;
+    transition: color 0.15s;
+  }
+  #zoom-label:hover { color: var(--accent2); }
+
+  /* ── 캔버스 영역 ── */
+  #viewer-wrap {
+    flex: 1;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start; /* center → flex-start: 왼쪽 overflow 접근 불가 버그 수정 */
+    background: #111115;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  #canvas-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 12px 0 24px;
+    gap: 8px;
+    min-width: 100%;      /* 작을 때는 뷰포트 전체 너비 유지 */
+    width: max-content;   /* 클 때는 콘텐츠 너비로 확장, 왼쪽부터 스크롤 */
+  }
+
+  .page-wrapper {
+    position: relative;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+    border-radius: 2px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .page-wrapper canvas { display: block; }
+
+  .page-num-badge {
+    position: absolute;
+    bottom: 6px; right: 8px;
+    background: rgba(0,0,0,0.5);
+    color: rgba(255,255,255,0.55);
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 10px;
+    pointer-events: none;
+  }
+
+  /* ── 빈 화면 ── */
+  #empty-state {
+    flex: 1;
+    width: 100%; /* align-items: flex-start 보정 */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    padding: 40px 24px;
+  }
+
+  .empty-icon {
+    width: 80px; height: 80px;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
+    border-radius: 22px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 8px 32px rgba(108,143,255,0.3);
+  }
+  .empty-icon svg { width: 40px; height: 40px; color: white; }
+
+  .empty-text { text-align: center; }
+  .empty-text h2 { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+  .empty-text p { font-size: 14px; color: var(--text-dim); line-height: 1.6; }
+
+  #open-btn-main {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: white;
+    border: none;
+    border-radius: 14px;
+    padding: 14px 32px;
+    font-size: 16px; font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    box-shadow: 0 4px 20px rgba(108,143,255,0.35);
+    transition: transform 0.1s;
+    display: flex; align-items: center; gap: 8px;
+  }
+  #open-btn-main:active { transform: scale(0.97); }
+  #open-btn-main svg { width: 20px; height: 20px; }
+
+  .made-by {
+    font-size: 11px;
+    color: var(--text-dim);
+    opacity: 0.5;
+    margin-top: 4px;
+    letter-spacing: 0.03em;
+  }
+
+  /* ── 하단 바 (페이지 네비게이션) ── */
+  #bottombar {
+    height: var(--bottom-h);
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    gap: 8px;
+    flex-shrink: 0;
+    z-index: 10;
+  }
+  #bottombar.hidden { display: none; }
+
+  .nav-btn {
+    width: 34px; height: 34px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: background 0.15s;
+    flex-shrink: 0;
+  }
+  .nav-btn:hover, .nav-btn:active { background: var(--border); }
+  .nav-btn:disabled { opacity: 0.3; pointer-events: none; }
+  .nav-btn svg { width: 15px; height: 15px; }
+
+  #page-slider-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  #page-info {
+    font-size: 11px;
+    color: var(--text-dim);
+    font-weight: 500;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  #page-slider {
+    flex: 1;
+    min-width: 0;
+    -webkit-appearance: none; appearance: none;
+    height: 4px; border-radius: 2px;
+    background: var(--border);
+    outline: none; cursor: pointer;
+  }
+  #page-slider::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    box-shadow: 0 2px 8px rgba(108,143,255,0.4);
+    cursor: pointer;
+  }
+
+  /* ── 로딩 ── */
+  #loading {
+    position: fixed; inset: 0;
+    background: rgba(17,17,21,0.9);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 16px; z-index: 100;
+  }
+  #loading.hidden { display: none; }
+
+  .spinner {
+    width: 48px; height: 48px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #loading p { font-size: 14px; color: var(--text-dim); }
+  #loading-progress { font-size: 22px; font-weight: 700; color: var(--accent); }
+
+  /* ── 썸네일 패널 ── */
+  #thumb-panel {
+    position: fixed; inset: 0;
+    background: rgba(10,10,14,0.92);
+    z-index: 50;
+    display: flex; flex-direction: column;
+    backdrop-filter: blur(4px);
+  }
+  #thumb-panel.hidden { display: none; }
+
+  #thumb-header {
+    height: var(--bar-h);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center;
+    padding: 0 12px; gap: 8px;
+    flex-shrink: 0;
+  }
+  #thumb-header span { flex: 1; font-size: 15px; font-weight: 700; }
+
+  #thumb-grid {
+    flex: 1; overflow-y: auto;
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 10px; padding: 12px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .thumb-item {
+    display: flex; flex-direction: column;
+    align-items: center; gap: 4px; cursor: pointer;
+  }
+  .thumb-item canvas {
+    width: 100%; height: auto;
+    border-radius: 4px;
+    border: 2px solid transparent;
+    transition: border-color 0.15s;
+  }
+  .thumb-item.active canvas { border-color: var(--accent); }
+  .thumb-item span { font-size: 11px; color: var(--text-dim); }
+  .thumb-item.active span { color: var(--accent); font-weight: 700; }
+
+  /* ── 설치 배너 ── */
+  #install-banner {
+    position: fixed;
+    bottom: calc(var(--bottom-h) + var(--safe-bot) + 8px);
+    left: 12px; right: 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 12px 14px;
+    display: flex; align-items: center; gap: 10px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    z-index: 40;
+    animation: slideUp 0.3s ease;
+  }
+  #install-banner.hidden { display: none; }
+  @keyframes slideUp { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+  .banner-icon {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .banner-icon svg { width: 18px; height: 18px; color: white; }
+  .banner-text { flex: 1; min-width: 0; }
+  .banner-text strong { font-size: 12px; display: block; margin-bottom: 2px; }
+  .banner-text span { font-size: 11px; color: var(--text-dim); }
+
+  #install-btn {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: white; border: none;
+    border-radius: 8px;
+    padding: 7px 12px;
+    font-size: 12px; font-weight: 700;
+    font-family: inherit; cursor: pointer;
+    flex-shrink: 0;
+  }
+  #install-close {
+    background: none; border: none;
+    color: var(--text-dim); cursor: pointer;
+    padding: 4px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #install-close svg { width: 14px; height: 14px; }
+
+  #file-input { display: none; }
+
+  /* 스크롤바 */
+  #viewer-wrap::-webkit-scrollbar { width: 5px; }
+  #viewer-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  #thumb-grid::-webkit-scrollbar { width: 3px; }
+  #thumb-grid::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* ── 반응형 ── */
+  @media (max-width: 400px) {
+    #zoom-label { min-width: 36px; font-size: 10px; }
+    .z-btn { width: 26px; height: 26px; font-size: 15px; }
+    #zoom-label { line-height: 26px; }
+  }
+
+  /* PC: 썸네일 4열 */
+  @media (min-width: 768px) {
+    #thumb-grid { grid-template-columns: repeat(4, 1fr); }
+  }
+  @media (min-width: 1200px) {
+    #thumb-grid { grid-template-columns: repeat(6, 1fr); }
+  }
+
+  /* ── 유튜브 스트립 ── */
+  #yt-strip {
+    height: 30px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    z-index: 10;
+  }
+  #yt-strip a {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-dim);
+    text-decoration: none;
+    font-size: 11px;
+    font-weight: 500;
+    transition: color 0.15s;
+    padding: 0 12px;
+  }
+  #yt-strip a:hover { color: #ff4444; }
+  #yt-strip a svg { width: 14px; height: 14px; flex-shrink: 0; }
+  #yt-strip .yt-dot {
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: var(--border);
+    flex-shrink: 0;
+  }
+
+  /* ── 기본앱 설정 가이드 패널 ── */
+  #guide-panel {
+    position: fixed; inset: 0;
+    background: rgba(10,10,14,0.85);
+    z-index: 60;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+  }
+  #guide-panel.hidden { display: none; }
+
+  #guide-sheet {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px 20px 0 0;
+    width: 100%; max-width: 600px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 -4px 40px rgba(0,0,0,0.6);
+    animation: sheetUp 0.25s ease;
+  }
+  @keyframes sheetUp { from { transform: translateY(40px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+  #guide-header {
+    display: flex;
+    align-items: center;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  #guide-header h2 { flex: 1; font-size: 15px; font-weight: 700; }
+
+  #guide-body {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    max-height: calc(85dvh - 44px);
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .guide-platform {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .guide-platform-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 12px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .guide-platform-header .platform-icon {
+    font-size: 17px;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .guide-platform-header .platform-name {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .guide-platform-header .platform-badge {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 20px;
+    flex-shrink: 0;
+  }
+  .badge-ok  { background: rgba(52,211,153,0.15); color: #34d399; }
+  .badge-limited { background: rgba(251,146,60,0.15); color: #fb923c; }
+  .guide-platform-header .chevron {
+    width: 14px; height: 14px;
+    color: var(--text-dim);
+    transition: transform 0.2s;
+    flex-shrink: 0;
+  }
+  .guide-platform.open .chevron { transform: rotate(180deg); }
+
+  .guide-steps {
+    display: none;
+    padding: 0 12px 8px;
+    border-top: 1px solid var(--border);
+  }
+  .guide-platform.open .guide-steps { display: block; }
+
+  .guide-step {
+    display: flex;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .guide-step:last-child { border-bottom: none; }
+  .guide-step .step-num {
+    width: 19px; height: 19px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .guide-step .step-body strong { font-size: 12px; font-weight: 700; display: block; margin-bottom: 1px; }
+  .guide-step .step-body span { font-size: 11px; color: var(--text-dim); line-height: 1.3; }
+  .guide-step .step-body code {
+    background: rgba(108,143,255,0.12);
+    color: var(--accent);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-family: inherit;
+  }
+
+  .guide-note {
+    background: rgba(251,146,60,0.08);
+    border: 1px solid rgba(251,146,60,0.2);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 11px;
+    color: #fb923c;
+    margin-top: 4px;
+    line-height: 1.3;
+  }
+
+  /* ── 이미지 변환 패널 ── */
+  #export-panel {
+    position: fixed; inset: 0;
+    background: rgba(10,10,14,0.7);
+    z-index: 60;
+    display: flex; align-items: flex-end; justify-content: center;
+    backdrop-filter: blur(3px);
+    padding-bottom: calc(var(--bottom-h) + var(--safe-bot) + 8px);
+  }
+  #export-panel.hidden { display: none; }
+
+  #export-sheet {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px 18px 14px 14px;
+    width: 100%; max-width: 480px;
+    padding: 20px 16px 16px;
+    display: flex; flex-direction: column; gap: 10px;
+    box-shadow: 0 -4px 32px rgba(0,0,0,0.5);
+  }
+
+  #export-sheet h3 {
+    font-size: 15px; font-weight: 700;
+    color: var(--text);
+    text-align: center;
+    margin-bottom: 4px;
+  }
+
+  .export-option {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    cursor: pointer;
+    transition: background 0.15s;
+    font-family: inherit; color: var(--text);
+    text-align: left; width: 100%;
+  }
+  .export-option:hover, .export-option:active { background: var(--border); }
+  .export-option svg { width: 20px; height: 20px; color: var(--accent); flex-shrink: 0; }
+  .export-option .opt-text strong { font-size: 14px; display: block; margin-bottom: 2px; }
+  .export-option .opt-text span { font-size: 12px; color: var(--text-dim); }
+
+  #export-cancel {
+    background: none; border: none;
+    color: var(--text-dim); font-family: inherit;
+    font-size: 14px; padding: 8px;
+    cursor: pointer; border-radius: 8px;
+    transition: color 0.15s;
+    width: 100%;
+  }
+  #export-cancel:hover { color: var(--text); }
+
+  /* 전체화면 버튼 활성 상태 */
+  #fullscreen-btn.active { color: var(--accent); }
+
+  /* 내보내기 진행 오버레이 */
+  #export-loading {
+    position: fixed; inset: 0;
+    background: rgba(17,17,21,0.92);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 14px; z-index: 110;
+  }
+  #export-loading.hidden { display: none; }
+  #export-loading p { font-size: 14px; color: var(--text-dim); }
+  #export-loading-progress { font-size: 22px; font-weight: 700; color: var(--accent); }
+
+  /* 모바일 극소형에서 전체화면 버튼 숨김 */
+  @media (max-width: 340px) { #fullscreen-btn { display: none; } }
+</style>
+</head>
+<body>
+
+<!-- 상단 바: 파일열기 | 제목 | 줌컨트롤 | 썸네일 -->
+<div id="topbar">
+  <button class="icon-btn" id="open-btn-top" title="파일 열기 (O)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+    </svg>
+  </button>
+
+  <div id="file-title">광고 없는 PDF 뷰어</div>
+
+  <!-- 줌 컨트롤 그룹 (PDF 로드 후 표시) -->
+  <div id="zoom-controls" class="hidden">
+    <button class="z-btn" id="zoom-out" title="축소 (-)">−</button>
+    <div id="zoom-label" title="클릭하면 화면 맞춤으로 초기화">100%</div>
+    <button class="z-btn" id="zoom-in" title="확대 (+)">+</button>
+    <button class="z-btn" id="zoom-fit" title="화면 맞춤 (0)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/>
+        <line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- 이미지 변환 버튼 (PDF 로드 후 표시) -->
+  <button class="icon-btn" id="export-btn" style="display:none" title="이미지로 변환">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+      <polyline points="21 15 16 10 5 21"/>
+    </svg>
+  </button>
+
+  <!-- 전체화면 버튼 -->
+  <button class="icon-btn" id="fullscreen-btn" title="전체화면 (F)">
+    <svg id="fs-enter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/>
+      <line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
+    </svg>
+    <svg id="fs-exit-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+      <polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/>
+      <line x1="10" y1="14" x2="3" y2="21"/><line x1="21" y1="3" x2="14" y2="10"/>
+    </svg>
+  </button>
+
+  <!-- 기본앱 설정 가이드 버튼 -->
+  <button class="icon-btn" id="guide-btn" title="앱 사용법">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="12" y1="16" x2="12" y2="12"/>
+      <line x1="12" y1="8" x2="12.01" y2="8"/>
+    </svg>
+  </button>
+
+  <button class="icon-btn" id="thumb-btn" style="display:none" title="페이지 목록">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+      <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+    </svg>
+  </button>
+</div>
+
+<!-- 메인 뷰어 -->
+<div id="viewer-wrap">
+  <div id="empty-state">
+    <div class="empty-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="12" y1="11" x2="12" y2="17"/>
+        <line x1="9.5" y1="14" x2="14.5" y2="14"/>
+      </svg>
+    </div>
+    <div class="empty-text">
+      <h2>PDF 파일 열기</h2>
+      <p>PDF 파일을 선택하거나<br>여기에 드래그하세요</p>
+    </div>
+    <button id="open-btn-main">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+      파일 선택
+    </button>
+    <div class="made-by">만든이 · 초실행관</div>
+  </div>
+  <div id="canvas-container" style="display:none"></div>
+</div>
+
+<!-- 하단 바: 이전 | 슬라이더 | 페이지정보 | 다음 -->
+<div id="bottombar" class="hidden">
+  <button class="nav-btn" id="prev-btn" disabled title="이전 페이지 (←)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="15 18 9 12 15 6"/>
+    </svg>
+  </button>
+  <div id="page-slider-wrap">
+    <input type="range" id="page-slider" min="1" max="1" value="1">
+    <div id="page-info">1 / 1</div>
+  </div>
+  <button class="nav-btn" id="next-btn" disabled title="다음 페이지 (→)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="9 18 15 12 9 6"/>
+    </svg>
+  </button>
+</div>
+
+<!-- 유튜브 채널 스트립 -->
+<div id="yt-strip">
+  <a href="https://www.youtube.com/@초실행관" target="_blank" rel="noopener">
+    <svg viewBox="0 0 24 24" fill="currentColor" style="color:#ff4444">
+      <path d="M23 7s-.3-2-1.2-2.8c-1.1-1.2-2.4-1.2-3-1.3C16.1 2.8 12 2.8 12 2.8s-4.1 0-6.8.1c-.6.1-1.9.1-3 1.3C1.3 5 1 7 1 7S.8 9.1.8 11.3v2c0 2.1.2 4.3.2 4.3s.3 2 1.2 2.8c1.1 1.2 2.6 1.1 3.3 1.2C7.6 21.8 12 21.8 12 21.8s4.1 0 6.8-.2c.6-.1 1.9-.1 3-1.3.9-.8 1.2-2.8 1.2-2.8s.2-2.1.2-4.3v-2C23.2 9.1 23 7 23 7zM9.7 15.5V8.3l8.1 3.6-8.1 3.6z"/>
+    </svg>
+    <span>초실행관 유튜브 채널</span>
+    <div class="yt-dot"></div>
+    <span>실행이 답이다</span>
+  </a>
+</div>
+
+<!-- 기본앱 설정 가이드 패널 -->
+<div id="guide-panel" class="hidden">
+  <div id="guide-sheet">
+    <div id="guide-header">
+      <h2>📱 앱 사용법</h2>
+      <button class="icon-btn" id="guide-close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <div id="guide-body">
+
+      <!-- Android -->
+      <div class="guide-platform open" id="gp-android">
+        <div class="guide-platform-header" onclick="toggleGuide('gp-android')">
+          <div class="platform-icon">🤖</div>
+          <div class="platform-name">Android (크롬)</div>
+          <div class="platform-badge badge-limited">앱 설치 후 사용</div>
+          <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        <div class="guide-steps">
+          <div class="guide-note" style="margin:0 0 10px; background:rgba(108,143,255,0.08); border-color:rgba(108,143,255,0.25); color:var(--accent);">
+            ℹ️ 안드로이드 크롬은 웹앱을 "연결 프로그램" 목록에 등록하는 기능을 지원하지 않아요. 아래 방법으로 사용하세요.
+          </div>
+          <div class="guide-step">
+            <div class="step-num">1</div>
+            <div class="step-body">
+              <strong>앱 설치 (홈 화면에 추가)</strong>
+              <span>화면 하단 <code>앱으로 설치하기</code> 배너를 탭하거나, 크롬 메뉴(⋮) → <code>앱 설치</code>를 선택하세요.</span>
+            </div>
+          </div>
+          <div class="guide-step">
+            <div class="step-num">2</div>
+            <div class="step-body">
+              <strong>홈 화면 아이콘으로 앱 실행</strong>
+              <span>홈 화면의 <code>PDF뷰어</code> 아이콘을 탭해서 앱을 열어주세요.</span>
+            </div>
+          </div>
+          <div class="guide-step">
+            <div class="step-num">3</div>
+            <div class="step-body">
+              <strong>파일 선택으로 PDF 열기</strong>
+              <span>앱 내 <code>파일 선택</code> 버튼을 탭 → 파일 앱에서 원하는 PDF를 선택하면 바로 열립니다.</span>
+            </div>
+          </div>
+          <div class="guide-step">
+            <div class="step-num">4</div>
+            <div class="step-body">
+              <strong>카카오톡·메일 등에서 받은 PDF</strong>
+              <span>파일을 <code>다운로드</code> 후, 앱에서 <code>파일 선택</code>으로 내 파일 → 다운로드 폴더에서 열면 됩니다.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- iOS -->
+      <div class="guide-platform" id="gp-ios">
+        <div class="guide-platform-header" onclick="toggleGuide('gp-ios')">
+          <div class="platform-icon">🍎</div>
+          <div class="platform-name">iPhone / iPad (사파리)</div>
+          <div class="platform-badge badge-limited">부분 지원</div>
+          <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        <div class="guide-steps">
+          <div class="guide-step">
+            <div class="step-num">1</div>
+            <div class="step-body">
+              <strong>홈 화면에 추가</strong>
+              <span>사파리에서 이 페이지를 열고, 하단 공유 버튼(□↑) → <code>홈 화면에 추가</code>를 탭하세요.</span>
+            </div>
+          </div>
+          <div class="guide-step">
+            <div class="step-num">2</div>
+            <div class="step-body">
+              <strong>홈 화면 아이콘으로 실행</strong>
+              <span>홈 화면의 <code>PDF뷰어</code> 아이콘을 탭하면 앱처럼 실행됩니다.</span>
+            </div>
+          </div>
+          <div class="guide-step">
+            <div class="step-num">3</div>
+            <div class="step-body">
+              <strong>PDF 열기</strong>
+              <span>앱 실행 후 <code>파일 선택</code> 버튼으로 PDF를 선택하거나, 메일/메시지에서 PDF를 길게 눌러 <code>공유 → PDF뷰어</code>로 열 수 있습니다.</span>
+            </div>
+          </div>
+          <div class="guide-note">⚠️ iOS Safari는 파일 기본 앱 지정을 지원하지 않아요. PDF를 탭할 때마다 앱을 직접 선택해야 합니다.</div>
+        </div>
+      </div>
+
+      <!-- Windows PC -->
+      <div class="guide-platform" id="gp-pc">
+        <div class="guide-platform-header" onclick="toggleGuide('gp-pc')">
+          <div class="platform-icon">💻</div>
+          <div class="platform-name">Windows PC (크롬 / 엣지)</div>
+          <div class="platform-badge badge-ok">완전 지원</div>
+          <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        <div class="guide-steps">
+          <div class="guide-note" style="margin:6px 0 4px; background:rgba(108,143,255,0.08); border-color:rgba(108,143,255,0.25); color:var(--accent);">
+            ℹ️ PWA 앱은 Windows 기본 앱 설정 목록에 나타나지 않아요. 아래 우클릭 방법으로 설정하세요.
+          </div>
+          <div class="guide-step">
+            <div class="step-num">1</div>
+            <div class="step-body">
+              <strong>앱 설치 (선행 필수)</strong>
+              <span>크롬/엣지로 이 사이트 방문 후, 주소창 우측 설치 아이콘(⊕) 클릭 또는 메뉴(⋮) → <code>앱으로 설치</code>를 선택하세요.</span>
+            </div>
+          </div>
+          <div class="guide-step">
+            <div class="step-num">2</div>
+            <div class="step-body">
+              <strong>PDF 파일 우클릭</strong>
+              <span>파일 탐색기에서 PDF 파일을 우클릭 → <code>연결 프로그램</code> → <code>다른 앱 선택</code>을 눌러요.</span>
+            </div>
+          </div>
+          <div class="guide-step">
+            <div class="step-num">3</div>
+            <div class="step-body">
+              <strong>앱 선택 후 기본 설정</strong>
+              <span>목록에서 <code>광고 없는 PDF 뷰어</code>를 선택하고 <code>항상 이 앱 사용</code>에 체크 후 확인. 이후 PDF를 더블클릭하면 자동으로 열려요.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- 썸네일 패널 -->
+<div id="thumb-panel" class="hidden">
+  <div id="thumb-header">
+    <span>페이지 목록</span>
+    <button class="icon-btn" id="thumb-close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
+  </div>
+  <div id="thumb-grid"></div>
+</div>
+
+<!-- 설치 배너 -->
+<div id="install-banner" class="hidden">
+  <div class="banner-icon">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+      <polyline points="7 10 12 15 17 10"/>
+      <line x1="12" y1="15" x2="12" y2="3"/>
+    </svg>
+  </div>
+  <div class="banner-text">
+    <strong>앱으로 설치하기</strong>
+    <span>홈 화면에 추가해서 앱처럼 사용</span>
+  </div>
+  <button id="install-btn">설치</button>
+  <button id="install-close">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+    </svg>
+  </button>
+</div>
+
+<!-- 이미지 변환 패널 -->
+<div id="export-panel" class="hidden">
+  <div id="export-sheet">
+    <h3>이미지로 변환</h3>
+    <button class="export-option" id="export-current-btn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+        <polyline points="21 15 16 10 5 21"/>
+      </svg>
+      <div class="opt-text">
+        <strong>현재 페이지 저장</strong>
+        <span>PNG 파일 1개로 저장</span>
+      </div>
+    </button>
+    <button class="export-option" id="export-all-btn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/>
+        <line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      <div class="opt-text">
+        <strong>전체 페이지 저장</strong>
+        <span>모든 페이지를 ZIP으로 저장</span>
+      </div>
+    </button>
+    <button id="export-cancel">취소</button>
+  </div>
+</div>
+
+<!-- 이미지 변환 진행 오버레이 -->
+<div id="export-loading" class="hidden">
+  <div class="spinner"></div>
+  <div id="export-loading-progress">0%</div>
+  <p id="export-loading-msg">이미지 변환 중...</p>
+</div>
+
+<!-- 로딩 -->
+<div id="loading" class="hidden">
+  <div class="spinner"></div>
+  <div id="loading-progress">0%</div>
+  <p>PDF 불러오는 중...</p>
+</div>
+
+<input type="file" id="file-input" accept=".pdf,application/pdf">
+
+<script>
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+  // ── Service Worker ──
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js').catch(console.error);
+  }
+
+  // ── File Handler API: 모바일/PC 기본 PDF 앱으로 등록 ──
+  if ('launchQueue' in window) {
+    window.launchQueue.setConsumer(async launchParams => {
+      if (!launchParams.files || !launchParams.files.length) return;
+      const fileHandle = launchParams.files[0];
+      const file = await fileHandle.getFile();
+      if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+        const reader = new FileReader();
+        reader.onload = ev => loadPDF(ev.target.result, file.name);
+        reader.readAsArrayBuffer(file);
+      }
+    });
+  }
+
+  // ── PWA 설치 배너 ──
+  let deferredPrompt = null;
+  const installBanner = document.getElementById('install-banner');
+
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    deferredPrompt = e;
+    installBanner.classList.remove('hidden');
+  });
+
+  document.getElementById('install-btn').addEventListener('click', async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    installBanner.classList.add('hidden');
+  });
+
+  document.getElementById('install-close').addEventListener('click', () => {
+    installBanner.classList.add('hidden');
+  });
+
+  window.addEventListener('appinstalled', () => {
+    installBanner.classList.add('hidden');
+    deferredPrompt = null;
+  });
+
+  // ── 뷰어 상태 ──
+  let pdfDoc = null, currentPage = 1, totalPages = 0;
+  let scale = 1.0, baseScale = 1.0;
+  const renderedPages = new Set();
+  let pageDimensions = []; // 각 페이지의 scale=1 기준 크기 캐시
+
+  const $ = id => document.getElementById(id);
+  const emptyState   = $('empty-state');
+  const canvasCont   = $('canvas-container');
+  const bottombar    = $('bottombar');
+  const zoomControls = $('zoom-controls');
+  const zoomLabel    = $('zoom-label');
+  const pageInfo     = $('page-info');
+  const slider       = $('page-slider');
+  const prevBtn      = $('prev-btn');
+  const nextBtn      = $('next-btn');
+  const fileInput    = $('file-input');
+  const loading      = $('loading');
+  const loadProg     = $('loading-progress');
+  const thumbPanel   = $('thumb-panel');
+  const thumbGrid    = $('thumb-grid');
+  const thumbBtn     = $('thumb-btn');
+  const viewerWrap   = $('viewer-wrap');
+
+  // ── 파일 열기 ──
+  function openFile() { fileInput.click(); }
+  $('open-btn-main').addEventListener('click', openFile);
+  $('open-btn-top').addEventListener('click', openFile);
+
+  fileInput.addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    readFile(file);
+    fileInput.value = '';
+  });
+
+  function readFile(file) {
+    const reader = new FileReader();
+    reader.onload = ev => loadPDF(ev.target.result, file.name);
+    reader.readAsArrayBuffer(file);
+  }
+
+  // ── PDF 로드 ──
+  async function loadPDF(data, name) {
+    loading.classList.remove('hidden');
+    loadProg.textContent = '0%';
+    renderedPages.clear();
+    canvasCont.innerHTML = '';
+    thumbGrid.innerHTML = '';
+
+    try {
+      const task = pdfjsLib.getDocument({ data });
+      task.onProgress = p => {
+        if (p.total) loadProg.textContent = Math.round(p.loaded / p.total * 100) + '%';
+      };
+      pdfDoc = await task.promise;
+      totalPages = pdfDoc.numPages;
+      currentPage = 1;
+
+      $('file-title').textContent = name.replace(/\.pdf$/i, '');
+      thumbBtn.style.display = 'flex';
+
+      // baseScale: 뷰어 실제 너비 기준으로 계산
+      const firstPage = await pdfDoc.getPage(1);
+      const vp0 = firstPage.getViewport({ scale: 1 });
+      baseScale = Math.min(
+        (viewerWrap.clientWidth  - 24) / vp0.width,
+        (viewerWrap.clientHeight - 24) / vp0.height
+      );
+      scale = baseScale;
+
+      // 모든 페이지 크기 캐시 (scale=1 기준)
+      pageDimensions = [null]; // 1-indexed
+      for (let i = 1; i <= totalPages; i++) {
+        const p = await pdfDoc.getPage(i);
+        const vp = p.getViewport({ scale: 1 });
+        pageDimensions.push({ width: vp.width, height: vp.height });
+      }
+
+      loadProg.textContent = '렌더링...';
+
+      // 페이지 플레이스홀더 생성
+      for (let i = 1; i <= totalPages; i++) {
+        canvasCont.appendChild(makePlaceholder(i));
+      }
+
+      await renderPages([1, 2, 3].filter(n => n <= totalPages));
+
+      emptyState.style.display = 'none';
+      canvasCont.style.display = 'flex';
+      bottombar.classList.remove('hidden');
+      zoomControls.classList.remove('hidden');
+      loading.classList.add('hidden');
+
+      updateNavUI();
+      updateZoomLabel();
+      buildThumbnails();
+
+      // 나머지 페이지 백그라운드 렌더
+      const rest = [];
+      for (let i = 4; i <= totalPages; i++) rest.push(i);
+      renderBackground(rest);
+
+    } catch (err) {
+      loading.classList.add('hidden');
+      alert('PDF를 열 수 없습니다: ' + err.message);
+    }
+  }
+
+  function makePlaceholder(i) {
+    const w = document.createElement('div');
+    w.className = 'page-wrapper';
+    w.id = `pw-${i}`;
+    // 캐시된 크기로 높이 미리 지정 → rerenderAll 후 scroll 위치가 정확하게 잡힘
+    if (pageDimensions[i]) {
+      w.style.width  = Math.round(pageDimensions[i].width  * scale) + 'px';
+      w.style.height = Math.round(pageDimensions[i].height * scale) + 'px';
+    }
+    const badge = document.createElement('div');
+    badge.className = 'page-num-badge';
+    badge.textContent = `${i} / ${totalPages}`;
+    w.appendChild(badge);
+    return w;
+  }
+
+  async function renderPages(nums) {
+    for (const n of nums) { if (!renderedPages.has(n)) await renderPage(n); }
+  }
+
+  async function renderBackground(nums) {
+    for (const n of nums) {
+      if (!renderedPages.has(n)) await renderPage(n);
+      await new Promise(r => setTimeout(r, 15));
+    }
+  }
+
+  async function renderPage(pageNum) {
+    if (renderedPages.has(pageNum)) return;
+    const page = await pdfDoc.getPage(pageNum);
+    const viewport = page.getViewport({ scale });
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width  = viewport.width  * dpr;
+    canvas.height = viewport.height * dpr;
+    canvas.style.width  = viewport.width  + 'px';
+    canvas.style.height = viewport.height + 'px';
+    ctx.scale(dpr, dpr);
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    const wrapper = $(`pw-${pageNum}`);
+    if (wrapper) {
+      wrapper.insertBefore(canvas, wrapper.querySelector('.page-num-badge'));
+      renderedPages.add(pageNum);
+    }
+  }
+
+  // ── 썸네일 ──
+  async function buildThumbnails() {
+    thumbGrid.innerHTML = '';
+    for (let i = 1; i <= totalPages; i++) {
+      const item = document.createElement('div');
+      item.className = 'thumb-item' + (i === currentPage ? ' active' : '');
+      item.dataset.page = i;
+      const cv = document.createElement('canvas');
+      const sp = document.createElement('span');
+      sp.textContent = i;
+      item.append(cv, sp);
+      thumbGrid.appendChild(item);
+      // 비동기 썸네일 렌더
+      (async (pn, canvas) => {
+        const p = await pdfDoc.getPage(pn);
+        const vp = p.getViewport({ scale: 0.15 });
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        canvas.width = vp.width * dpr; canvas.height = vp.height * dpr;
+        canvas.style.width = '100%'; canvas.style.height = 'auto';
+        const ctx = canvas.getContext('2d');
+        ctx.scale(dpr, dpr);
+        await p.render({ canvasContext: ctx, viewport: vp }).promise;
+      })(i, cv);
+      item.addEventListener('click', () => {
+        goToPage(i);
+        thumbPanel.classList.add('hidden');
+      });
+    }
+  }
+
+  function updateThumbActive() {
+    thumbGrid.querySelectorAll('.thumb-item').forEach(el => {
+      el.classList.toggle('active', parseInt(el.dataset.page) === currentPage);
+    });
+  }
+
+  $('thumb-btn').addEventListener('click', () => {
+    thumbPanel.classList.remove('hidden');
+    updateThumbActive();
+    const active = thumbGrid.querySelector('.thumb-item.active');
+    if (active) setTimeout(() => active.scrollIntoView({ block: 'center', behavior: 'smooth' }), 80);
+  });
+  $('thumb-close').addEventListener('click', () => thumbPanel.classList.add('hidden'));
+
+  // ── 페이지 이동 ──
+  function goToPage(n) {
+    if (!pdfDoc || n < 1 || n > totalPages) return;
+    currentPage = n;
+    $(`pw-${n}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    updateNavUI();
+    updateThumbActive();
+    renderPages([n-1, n, n+1, n+2].filter(p => p >= 1 && p <= totalPages));
+  }
+
+  prevBtn.addEventListener('click', () => goToPage(currentPage - 1));
+  nextBtn.addEventListener('click', () => goToPage(currentPage + 1));
+  slider.addEventListener('input', () => goToPage(parseInt(slider.value)));
+
+  function updateNavUI() {
+    if (!pdfDoc) return;
+    slider.max = totalPages;
+    slider.value = currentPage;
+    pageInfo.textContent = `${currentPage} / ${totalPages}`;
+    prevBtn.disabled = currentPage <= 1;
+    nextBtn.disabled = currentPage >= totalPages;
+  }
+
+  // 스크롤 시 현재 페이지 추적
+  viewerWrap.addEventListener('scroll', () => {
+    if (!pdfDoc || pinching) return;
+    let bestPage = currentPage, bestRatio = -1;
+    for (let i = 1; i <= totalPages; i++) {
+      const el = $(`pw-${i}`);
+      if (!el) continue;
+      const rect = el.getBoundingClientRect();
+      const visTop = Math.max(rect.top, 52);
+      const visBot = Math.min(rect.bottom, window.innerHeight - 48);
+      const visible = Math.max(0, visBot - visTop);
+      const ratio = visible / (el.offsetHeight || 1);
+      if (ratio > bestRatio) { bestRatio = ratio; bestPage = i; }
+    }
+    if (bestPage !== currentPage) {
+      currentPage = bestPage;
+      updateNavUI();
+      renderPages([bestPage-1, bestPage, bestPage+1].filter(p => p >= 1 && p <= totalPages));
+    }
+  }, { passive: true });
+
+  // ── 줌 ──
+  function getZoomMin() { return baseScale * 0.25; }
+  function getZoomMax() { return baseScale * 4.0; }
+
+  function changeZoom(newScale) {
+    newScale = Math.max(getZoomMin(), Math.min(getZoomMax(), newScale));
+    if (Math.abs(newScale - scale) < 0.0001) return;
+    scale = newScale;
+    updateZoomLabel();
+    rerenderAll();
+  }
+
+  function updateZoomLabel() {
+    zoomLabel.textContent = Math.round(scale / baseScale * 100) + '%';
+  }
+
+  $('zoom-in').addEventListener('click',  () => changeZoom(scale * 1.25));
+  $('zoom-out').addEventListener('click', () => changeZoom(scale / 1.25));
+  $('zoom-fit').addEventListener('click', () => changeZoom(baseScale));
+  zoomLabel.addEventListener('click',     () => changeZoom(baseScale));
+
+  async function rerenderAll() {
+    renderedPages.clear();
+    canvasCont.innerHTML = '';
+    for (let i = 1; i <= totalPages; i++) canvasCont.appendChild(makePlaceholder(i));
+
+    // 플레이스홀더에 정확한 높이가 지정돼 있으므로 scrollTop으로 바로 위치 잡기
+    const pageEl = $(`pw-${currentPage}`);
+    if (pageEl) viewerWrap.scrollTop = pageEl.offsetTop;
+
+    const nearby = [currentPage-1, currentPage, currentPage+1].filter(p => p >= 1 && p <= totalPages);
+    await renderPages(nearby);
+
+    const rest = [];
+    for (let i = 1; i <= totalPages; i++) { if (!nearby.includes(i)) rest.push(i); }
+    renderBackground(rest);
+  }
+
+  // 창 크기 변경 시 baseScale 재계산
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    if (!pdfDoc) return;
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(async () => {
+      const p = await pdfDoc.getPage(1);
+      const vp = p.getViewport({ scale: 1 });
+      const prevRatio = scale / baseScale;
+      baseScale = Math.min(
+        (viewerWrap.clientWidth  - 24) / vp.width,
+        (viewerWrap.clientHeight - 24) / vp.height
+      );
+      changeZoom(baseScale * prevRatio);
+    }, 300);
+  });
+
+  // ── 핀치 줌 (모바일) ──
+  // 핀치 중: CSS transform으로 실시간 시각 반응
+  // 핀치 끝: 새 scale로 실제 렌더링
+  let lastDist = 0, pinchStart = 1, pinching = false, pinchScrollTop = 0;
+
+  viewerWrap.addEventListener('touchstart', e => {
+    if (e.touches.length === 2) {
+      pinching = true;
+      lastDist = dist(e.touches);
+      pinchStart = scale;
+      pinchScrollTop = viewerWrap.scrollTop; // 핀치 시작 시 스크롤 위치 저장
+      canvasCont.style.willChange = 'transform';
+    }
+  }, { passive: true });
+
+  viewerWrap.addEventListener('touchmove', e => {
+    if (!pinching || e.touches.length !== 2) return;
+    const newScale = Math.max(getZoomMin(), Math.min(getZoomMax(), pinchStart * (dist(e.touches) / lastDist)));
+    scale = newScale;
+    updateZoomLabel();
+
+    // 렌더링 없이 CSS transform으로 즉각적인 시각 피드백
+    const visualRatio = newScale / pinchStart;
+    const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+    const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+    const rect = canvasCont.getBoundingClientRect();
+    const ox = cx - rect.left;
+    const oy = cy - rect.top + viewerWrap.scrollTop;
+    canvasCont.style.transformOrigin = `${ox}px ${oy}px`;
+    canvasCont.style.transform = `scale(${visualRatio})`;
+  }, { passive: true });
+
+  viewerWrap.addEventListener('touchend', e => {
+    if (!pinching) return;
+    if (e.touches.length >= 2) return; // 손가락 하나씩 뗄 때 중복 방지
+    pinching = false;
+    canvasCont.style.transform = '';
+    canvasCont.style.transformOrigin = '';
+    canvasCont.style.willChange = '';
+    // 핀치 시작 위치 기준으로 새 scale에 맞게 스크롤 위치 보정
+    viewerWrap.scrollTop = pinchScrollTop * (scale / pinchStart);
+    rerenderAll();
+  }, { passive: true });
+
+  viewerWrap.addEventListener('touchcancel', () => {
+    if (!pinching) return;
+    pinching = false;
+    canvasCont.style.transform = '';
+    canvasCont.style.transformOrigin = '';
+    canvasCont.style.willChange = '';
+    rerenderAll();
+  }, { passive: true });
+
+  function dist(t) {
+    return Math.sqrt((t[0].clientX - t[1].clientX) ** 2 + (t[0].clientY - t[1].clientY) ** 2);
+  }
+
+  // ── 드래그 앤 드롭 ──
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file?.type === 'application/pdf' || file?.name?.toLowerCase().endsWith('.pdf')) {
+      readFile(file);
+    }
+  });
+
+  // ── 전체화면 ──
+  const fullscreenBtn  = $('fullscreen-btn');
+  const fsEnterIcon    = $('fs-enter-icon');
+  const fsExitIcon     = $('fs-exit-icon');
+
+  fullscreenBtn.addEventListener('click', () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen();
+    }
+  });
+
+  document.addEventListener('fullscreenchange', () => {
+    const isFS = !!document.fullscreenElement;
+    fsEnterIcon.style.display = isFS ? 'none'  : '';
+    fsExitIcon.style.display  = isFS ? ''      : 'none';
+    fullscreenBtn.classList.toggle('active', isFS);
+    // 전체화면 전환 후 baseScale 재계산
+    if (pdfDoc) {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(async () => {
+        const p = await pdfDoc.getPage(1);
+        const vp = p.getViewport({ scale: 1 });
+        const prevRatio = scale / baseScale;
+        baseScale = Math.min(
+          (viewerWrap.clientWidth  - 24) / vp.width,
+          (viewerWrap.clientHeight - 24) / vp.height
+        );
+        changeZoom(baseScale * prevRatio);
+      }, 200);
+    }
+  });
+
+  // ── 이미지 변환 ──
+  const exportPanel      = $('export-panel');
+  const exportLoading    = $('export-loading');
+  const exportLoadingPrg = $('export-loading-progress');
+  const exportLoadingMsg = $('export-loading-msg');
+  let fileBaseName       = 'pdf';
+
+  $('export-btn').addEventListener('click', () => exportPanel.classList.remove('hidden'));
+  $('export-cancel').addEventListener('click', () => exportPanel.classList.add('hidden'));
+  exportPanel.addEventListener('click', e => {
+    if (e.target === exportPanel) exportPanel.classList.add('hidden');
+  });
+
+  // 현재 페이지 PNG 저장
+  $('export-current-btn').addEventListener('click', async () => {
+    exportPanel.classList.add('hidden');
+    if (!pdfDoc) return;
+    exportLoadingMsg.textContent = '이미지 변환 중...';
+    exportLoadingPrg.textContent = '';
+    exportLoading.classList.remove('hidden');
+
+    const canvas = await renderToCanvas(currentPage, 2);
+    canvas.toBlob(blob => {
+      exportLoading.classList.add('hidden');
+      downloadBlob(blob, `${fileBaseName}_p${currentPage}.png`);
+    }, 'image/png');
+  });
+
+  // 전체 페이지 ZIP 저장
+  $('export-all-btn').addEventListener('click', async () => {
+    exportPanel.classList.add('hidden');
+    if (!pdfDoc) return;
+    exportLoadingMsg.textContent = '전체 페이지 변환 중...';
+    exportLoadingPrg.textContent = '0%';
+    exportLoading.classList.remove('hidden');
+
+    const zip = new JSZip();
+    for (let i = 1; i <= totalPages; i++) {
+      exportLoadingPrg.textContent = `${i} / ${totalPages}`;
+      const canvas = await renderToCanvas(i, 2);
+      const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+      zip.file(`${fileBaseName}_p${String(i).padStart(4, '0')}.png`, blob);
+    }
+
+    exportLoadingMsg.textContent = 'ZIP 압축 중...';
+    exportLoadingPrg.textContent = '';
+    const zipBlob = await zip.generateAsync({ type: 'blob' }, meta => {
+      exportLoadingPrg.textContent = Math.round(meta.percent) + '%';
+    });
+    exportLoading.classList.add('hidden');
+    downloadBlob(zipBlob, `${fileBaseName}_images.zip`);
+  });
+
+  async function renderToCanvas(pageNum, dpr = 2) {
+    const page     = await pdfDoc.getPage(pageNum);
+    const viewport = page.getViewport({ scale });
+    const canvas   = document.createElement('canvas');
+    canvas.width   = viewport.width  * dpr;
+    canvas.height  = viewport.height * dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    return canvas;
+  }
+
+  function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a   = document.createElement('a');
+    a.href     = url;
+    a.download = filename;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }
+
+  // PDF 로드 시 export 버튼 표시 & 파일명 저장
+  const _origLoadPDF = loadPDF;
+  // fileBaseName은 loadPDF 내부에서 설정되므로 file-title 변경 시 갱신
+  const fileTitleEl = $('file-title');
+  new MutationObserver(() => {
+    fileBaseName = fileTitleEl.textContent.trim() || 'pdf';
+    $('export-btn').style.display = pdfDoc ? 'flex' : 'none';
+  }).observe(fileTitleEl, { childList: true, characterData: true, subtree: true });
+
+  // ── 키보드 단축키 (F: 전체화면 추가) ──
+  document.addEventListener('keydown', e => {
+    if (e.key === 'f' || e.key === 'F') { fullscreenBtn.click(); return; }
+    if (!pdfDoc) return;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') goToPage(currentPage + 1);
+    else if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   goToPage(currentPage - 1);
+    else if (e.key === '+' || e.key === '=') changeZoom(scale * 1.25);
+    else if (e.key === '-') changeZoom(scale / 1.25);
+    else if (e.key === '0') changeZoom(baseScale);
+    else if (e.key === 'o' || e.key === 'O') openFile();
+  }, { capture: true });
+
+  // ── 기본앱 설정 가이드 ──
+  const guidePanel = $('guide-panel');
+  $('guide-btn').addEventListener('click', () => guidePanel.classList.remove('hidden'));
+  $('guide-close').addEventListener('click', () => guidePanel.classList.add('hidden'));
+  guidePanel.addEventListener('click', e => {
+    if (e.target === guidePanel) guidePanel.classList.add('hidden');
+  });
+
+  function toggleGuide(id) {
+    const el = document.getElementById(id);
+    const isOpen = el.classList.contains('open');
+    document.querySelectorAll('.guide-platform').forEach(p => p.classList.remove('open'));
+    if (!isOpen) el.classList.add('open');
+  }
+</script>
+</body>
+</html>
