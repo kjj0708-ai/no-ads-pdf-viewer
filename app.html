@@ -1319,11 +1319,28 @@
   }
 
   // 창 크기 변경 시 baseScale 재계산
-  let resizeTimer;
+  // 모바일 주소창 숨김/표시(작은 높이 변화)는 무시 — 줌 오작동 방지
+  let resizeTimer, lastResizeH = window.innerHeight, lastResizeW = window.innerWidth;
   window.addEventListener('resize', () => {
     if (!pdfDoc) return;
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(async () => {
+      const dw = Math.abs(window.innerWidth  - lastResizeW);
+      const dh = Math.abs(window.innerHeight - lastResizeH);
+      lastResizeW = window.innerWidth;
+      lastResizeH = window.innerHeight;
+      // 너비 변화가 없고 높이 변화만 100px 미만이면 주소창 이벤트로 간주 — 줌 유지
+      if (dw < 10 && dh < 100) {
+        const p = await pdfDoc.getPage(1);
+        const vp = p.getViewport({ scale: 1 });
+        baseScale = Math.min(
+          (viewerWrap.clientWidth  - 24) / vp.width,
+          (viewerWrap.clientHeight - 24) / vp.height
+        );
+        updateZoomLabel();
+        return;
+      }
+      // 실제 방향 전환 등 큰 변화 — 줌 비율 유지하며 재계산
       const p = await pdfDoc.getPage(1);
       const vp = p.getViewport({ scale: 1 });
       const prevRatio = scale / baseScale;
